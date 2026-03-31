@@ -18,8 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "dma.h"
-#include "usart.h"
+#include "rtc.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -34,7 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define Bufflen 2
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,9 +44,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t ReceiveBuff[Bufflen];
-uint8_t hello[5]={0x48,0x65,0x6c,0x6f,0x77};
-uint8_t clear=RESET;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,7 +55,9 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void pvt_RTCinit(void);
+void pvt_STOPenter_CFG(void);
+void pvt_STOPexit_CFG(void);
 /* USER CODE END 0 */
 
 /**
@@ -69,7 +68,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  uint8_t DEVICE_RTC_INTERNAL_TIME=9;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -90,37 +89,41 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_USART1_UART_Init();
+  //MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-	HAL_UART_Transmit_DMA(&huart1,hello,5);
-	HAL_UART_Receive_DMA(&huart1,ReceiveBuff,Bufflen);
+	__HAL_RCC_COMP_CLK_DISABLE();//禁用比较器
+	HAL_PWR_DisablePVD();//禁用PVD电源检测
+	HAL_PWREx_EnableUltraLowPower();//关闭VREFINT参考电压
+	HAL_PWREx_EnableFastWakeUp();//忽略VREFINT快速启动
+	HAL_DBGMCU_DisableDBGStopMode();//STOP模式禁用串口调试
+	HAL_PWR_EnableBkUpAccess();//启用备份STOP模式下RTC访问
+	pvt_RTCinit();//配置RTC
+	HAL_RTCEx_DeactivateWakeUpTimer(&hrtc);//禁止RTC内部唤醒计数
+	//HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, DEVICE_RTC_INTERNAL_TIME, RTC_WAKEUPCLOCK_CK_SPRE_16BITS);//启用RTC内部唤醒 5s定时
+	HAL_Delay(1000);//用于烧录程序延时
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		if(clear==SET)
+		/*---MISSION HERE---*/
+		led_on;
+		HAL_Delay(1000);
+		pvt_STOPenter_CFG();
+		HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, DEVICE_RTC_INTERNAL_TIME, RTC_WAKEUPCLOCK_CK_SPRE_16BITS);
+		HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON,PWR_STOPENTRY_WFI);
+		/*---STOP HERE---*/
+		pvt_STOPexit_CFG();
+		/*---AFTER WAKER UP---*/
+		for(uint8_t i=0;i<5;i++)
 		{
-			HAL_UART_Transmit_DMA(&huart1,ReceiveBuff,Bufflen);
-			if(ReceiveBuff[0]=='#')
-			{
-				if(ReceiveBuff[1]=='A')
-				{
-					HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_RESET);
-				}else if(ReceiveBuff[1]=='B')
-				{
-					HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_SET);
-				}
-			}
-			for(uint8_t i=0;i<2;i++)
-			{
-				ReceiveBuff[i]=0x00;
-			}
-			clear=RESET;
-			HAL_UART_Receive_DMA(&huart1,ReceiveBuff,Bufflen);
+			led_on;
+			HAL_Delay(100);
+			led_off;
+			HAL_Delay(100);
 		}
+		HAL_RTCEx_DeactivateWakeUpTimer(&hrtc);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -136,6 +139,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Configure the main internal regulator output voltage
   */
@@ -144,8 +148,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.MSICalibrationValue = 0;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_5;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -156,7 +163,7 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
@@ -165,15 +172,39 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void pvt_RTCinit(void)
 {
-	if(huart->Instance==USART1)
-	{
-		clear=SET;
-	}
+	  hrtc.Instance = RTC;
+    hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+    hrtc.Init.AsynchPrediv = 127;
+    hrtc.Init.SynchPrediv = 255;
+    hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+    HAL_RTC_Init(&hrtc);
+}
+
+void pvt_STOPenter_CFG(void)
+{
+	//清除中断标志位
+	//__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_0);
+	__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(&hrtc,RTC_FLAG_WUTF);
+	led_off;
+}
+void pvt_STOPexit_CFG(void)
+{
+	SystemClock_Config();//重新配置系统时钟
+	__HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);//清除唤醒标志
+	MX_GPIO_Init();//GPIO初始化
 }
 /* USER CODE END 4 */
 
