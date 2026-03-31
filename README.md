@@ -3,12 +3,12 @@
 # 项目进度
 - 以已验证为完成标志
 ## L_STM32_L151C8T6
-- [x]\bink
-- [x]\Ex_Stop_RTC
-- [x]\Test_Stop
-- [x]\UART_Test
+- [x] \bink
+- [x] \Ex_Stop_RTC
+- [x] \Test_Stop
+- [x] \UART_Test
 ## T_STM32_L151C8T6A
-- [x]\SetZIGBEE_in_older_board
-    基本完成任务，可设置参数，但无法拉取参数，设置参数后有提示。
-- [x]\Stop_RTC
-- [ ]\Uartx_DMA_printf
+- [x] \SetZIGBEE_in_older_board\
+> 基本完成任务，可设置参数，但无法拉取参数，设置参数后有提示。
+- [x] \Stop_RTC
+- [ ] \Uartx_DMA_printf
