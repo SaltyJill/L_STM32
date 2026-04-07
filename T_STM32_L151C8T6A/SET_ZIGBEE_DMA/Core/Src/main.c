@@ -39,7 +39,6 @@
 volatile uint8_t flag_computerRE = RESET;
 volatile uint8_t flag_zigbeeRE = RESET;
 volatile uint8_t flag_usart3_TS = RESET;
-volatile uint8_t flag_usart2_TS = RESET;
 uint8_t CMD_Buff[len_CMD];
 uint8_t CFG_Buff[len_CFG];
 uint8_t ZIGBEE_CFGrst[2] = {0x23, 0x23}; // 设备重启 CFG 必须高电平
@@ -108,8 +107,7 @@ int main(void)
     /* USER CODE BEGIN WHILE */
     while (1)
     {
-        led_on;
-        if (flag_computerRE == SET&&huart2.gState == HAL_UART_STATE_READY)
+        if (flag_computerRE == SET && huart2.gState == HAL_UART_STATE_READY)
         {
             if (CMD_Buff[0] == '#' && CMD_Buff[1] == 'A')
             {
@@ -123,7 +121,7 @@ int main(void)
             {
                 HAL_UART_Transmit_DMA(&huart2, (uint8_t *)"Invalid Command\r\n", 17);
             }
-            HAL_UART_Receive_DMA(&huart2, CMD_Buff, len_CMD);//接受下一条指令
+            HAL_UART_Receive_DMA(&huart2, CMD_Buff, len_CMD); // 接受下一条指令
             flag_computerRE = RESET;
         }
 
@@ -132,15 +130,17 @@ int main(void)
             HAL_UART_Transmit(&huart3, ZIGBEE_CFGrst, 2, 100);
             HAL_UART_Transmit_DMA(&huart2, (uint8_t *)"MISSION COMPLETE\r\n", 18);
             flag_usart3_TS = RESET;
+            led_on;
         }
 
-        if (flag_usart2_TS==SET)
+        if (flag_zigbeeRE == SET)
         {
-            HAL_UART_Transmit_DMA(&huart2, CFG_Buff, len_CFG);
+            HAL_UART_Transmit(&huart2, CFG_Buff, len_CFG, 200);
             HAL_UART_Transmit_DMA(&huart2, (uint8_t *)"MISSION COMPLETE\r\n", 18);
-            flag_usart2_TS=RESET;
+            flag_zigbeeRE = RESET;
+            led_on;
         }
-        
+
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -204,10 +204,6 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
     if (huart->Instance == USART3)
     {
         flag_usart3_TS = SET;
-    }
-    else if (huart->Instance == USART2)
-    {
-        flag_usart2_TS = SET;
     }
 }
 /* USER CODE END 4 */
