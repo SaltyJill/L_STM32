@@ -24,23 +24,19 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "zigbee.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+#define Uart3_len 4
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define len_buff 12
-uint8_t RxBuffer1[len_buff];
-uint8_t RxBuffer2[len_buff];
-uint8_t RxBuffer3[len_buff];
-uint8_t uart1_DMAFlag = RESET;
-uint8_t uart2_DMAFlag = RESET;
-uint8_t uart3_DMAFlag = RESET;
+volatile uint8_t flag_Uart3RX = RESET;
+uint8_t RXbuffer_Uart3[Uart3_len];
+uint8_t TXbuffer_Uart3[Uart3_len];
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -96,39 +92,40 @@ int main(void)
     MX_GPIO_Init();
     MX_DMA_Init();
     MX_USART1_UART_Init();
-    MX_USART2_UART_Init();
     MX_USART3_UART_Init();
     /* USER CODE BEGIN 2 */
-    HAL_UART_Transmit_DMA(&huart1, (uint8_t *)"USART1 DMA\r\n", 13);
-    HAL_UART_Transmit_DMA(&huart2, (uint8_t *)"USART2 DMA\r\n", 13);
-    HAL_UART_Transmit_DMA(&huart3, (uint8_t *)"USART3 DMA\r\n", 13);
-    HAL_UART_Receive_DMA(&huart1, RxBuffer1, len_buff);
-    HAL_UART_Receive_DMA(&huart2, RxBuffer2, len_buff);
-    HAL_UART_Receive_DMA(&huart3, RxBuffer3, len_buff);
+		HAL_Delay(500);//等待电平稳定
+    Zigbee_CFGinit(MainPoint);
+    HAL_Delay(1000); // 等待节点联网
+    HAL_UART_Transmit(&huart1, (uint8_t *)"At Your Service\n", 16, 500);
+    HAL_UART_Receive_DMA(&huart3, RXbuffer_Uart3, Uart3_len);
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
     while (1)
     {
-        if (uart1_DMAFlag == SET)
+        if (flag_Uart3RX == SET)
         {
-            uart1_DMAFlag = RESET;
-            printf_DMA(&huart1, "This is USART1.Your message is: %s\r\n", RxBuffer1);
-            HAL_UART_Receive_DMA(&huart1, RxBuffer1, len_buff);
+            for (uint8_t i = 0; i < Uart3_len; i++)
+            {
+                TXbuffer_Uart3[i] = RXbuffer_Uart3[i];
+            }
+            HAL_UART_Transmit(&huart1, TXbuffer_Uart3,Uart3_len,500);
+            for (uint8_t i = 0; i < Uart3_len; i++)
+            {
+                TXbuffer_Uart3[i] = 0;
+            }
+            flag_Uart3RX = RESET;
         }
-        if (uart2_DMAFlag == SET)
+        else
         {
-            uart2_DMAFlag = RESET;
-            printf_DMA(&huart2, "This is USART2.Your message is: %s\r\n", RxBuffer2);
-            HAL_UART_Receive_DMA(&huart2, RxBuffer2, len_buff);
+            led_on;
+            HAL_Delay(100);
+            led_off;
+            HAL_Delay(100);
         }
-        if (uart3_DMAFlag == SET)
-        {
-            uart3_DMAFlag = RESET;
-            printf_DMA(&huart3, "This is USART3.Your message is: %s\r\n", RxBuffer3);
-            HAL_UART_Receive_DMA(&huart3, RxBuffer3, len_buff);
-        }
+
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -152,12 +149,10 @@ void SystemClock_Config(void)
     /** Initializes the RCC Oscillators according to the specified parameters
      * in the RCC_OscInitTypeDef structure.
      */
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-    RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-    RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL3;
-    RCC_OscInitStruct.PLL.PLLDIV = RCC_PLL_DIV2;
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
     {
         Error_Handler();
@@ -166,7 +161,7 @@ void SystemClock_Config(void)
     /** Initializes the CPU, AHB and APB buses clocks
      */
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
     RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
@@ -180,17 +175,10 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == USART1)
+    if (huart->Instance == USART3)
     {
-        uart1_DMAFlag = SET;
-    }
-    else if (huart->Instance == USART2)
-    {
-        uart2_DMAFlag = SET;
-    }
-    else if (huart->Instance == USART3)
-    {
-        uart3_DMAFlag = SET;
+        flag_Uart3RX = SET;
+        HAL_UART_Receive_DMA(&huart3, RXbuffer_Uart3, Uart3_len);
     }
 }
 /* USER CODE END 4 */
