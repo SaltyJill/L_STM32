@@ -117,7 +117,7 @@ int main(void)
 					  u8V[0]=(uint8_t)(Vbat_mV>>8);
 						u8V[1]=(uint8_t)(Vbat_mV&0x00FF);
         }
-        if (adc_count >= 16)
+        if (adc_count >= 4)
         {
 					HAL_UART_Transmit(&huart1,u8V,2,100);
           adc_sum = 0;

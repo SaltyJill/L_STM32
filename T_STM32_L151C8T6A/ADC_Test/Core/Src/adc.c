@@ -44,7 +44,7 @@ void MX_ADC_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
   hadc.Instance = ADC1;
-  hadc.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV4;
   hadc.Init.Resolution = ADC_RESOLUTION_12B;
   hadc.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc.Init.ScanConvMode = ADC_SCAN_DISABLE;
@@ -149,7 +149,7 @@ uint16_t Battery_mV(uint32_t raw)
 {
     uint32_t NUM=0;
     uint32_t DEN=0;
-    NUM=(uint32_t)(raw*3336*(56+22));
+    NUM=(uint32_t)(raw*3291*(56+22));
     DEN=(uint32_t)(4095*56);
     NUM+=DEN/2;//四舍五入
 

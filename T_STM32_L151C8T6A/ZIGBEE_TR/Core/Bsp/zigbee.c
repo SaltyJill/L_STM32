@@ -62,7 +62,7 @@ void Zigbee_CFGinit(uint8_t CFGname)
     Zigbee_SLPexit;
     HAL_Delay(50);
     Zigbee_CFGenter;
-    HAL_Delay(3000);
+    HAL_Delay(3100);
 		//Zigbee_RSTexit;
 		//HAL_Delay(50);
     HAL_UART_Transmit(&huart3, ZIGBEE_CFGset, 2, 100);
